@@ -2,12 +2,11 @@
 
 client_id = "cf03fe5e07a942b9d58fc9815aa65d69"
 name = "latest-app"
-application_url = "https://example.com"
+application_url = "https://judy-llc-player-engineering.trycloudflare.com"
 embedded = true
 
 [build]
 automatically_update_urls_on_dev = true
-include_config_on_deploy = true
 
 [webhooks]
 api_version = "2026-01"
@@ -17,4 +16,7 @@ api_version = "2026-01"
 scopes = "write_products"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [
+  "https://judy-llc-player-engineering.trycloudflare.com/api/auth",
+  "https://judy-llc-player-engineering.trycloudflare.com/api/auth/callback"
+]

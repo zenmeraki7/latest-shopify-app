@@ -7,6 +7,13 @@ import serveStatic from "serve-static";
 import shopify from "./shopify.js";
 import productCreator from "./product-creator.js";
 import PrivacyWebhookHandlers from "./privacy.js";
+import productRoutes from "./routes/products.js";
+import categoryRoutes from "./routes/category.js";
+import merchantsRoutes from "./routes/store.js";
+import dotenv from "dotenv";
+import mongoose from "mongoose";
+import { appInstallMiddleware } from "./middlewares/appInstallMiddleware.js";
+dotenv.config();
 
 const PORT = parseInt(
   process.env.BACKEND_PORT || process.env.PORT || "3000",
@@ -25,6 +32,7 @@ app.get(shopify.config.auth.path, shopify.auth.begin());
 app.get(
   shopify.config.auth.callbackPath,
   shopify.auth.callback(),
+  appInstallMiddleware,
   shopify.redirectToShopifyOrAppRoot()
 );
 app.post(
@@ -38,6 +46,10 @@ app.post(
 app.use("/api/*", shopify.validateAuthenticatedSession());
 
 app.use(express.json());
+
+app.use("/api/products", productRoutes);
+app.use("/api/category", categoryRoutes);
+app.use("/api/merchant", merchantsRoutes);
 
 app.get("/api/products/count", async (_req, res) => {
   const client = new shopify.api.clients.Graphql({
@@ -83,4 +95,10 @@ app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
     );
 });
 
-app.listen(PORT);
+app.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+  mongoose
+    .connect(process.env.MONGO_URI)
+    .then(() => console.log("MongoDB connected"))
+    .catch((err) => console.log(err));
+});
