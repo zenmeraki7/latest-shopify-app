@@ -1,6 +1,6 @@
 import { mlClassifier, checkMLService } from './mlClassifier.js';
-import { keywordClassifier } from './keywordClassifier.js';
-import { gptClassifier } from './gptClassifier.js'; // If you have this
+// import { keywordClassifier } from './keywordClassifier.js';
+// import { gptClassifier } from './gptClassifier.js'; // If you have this
 
 let mlServiceAvailable = false;
 
@@ -27,18 +27,18 @@ export async function classifyProduct(product) {
   }
 
   // 2. Try keyword matching
-  result = await keywordClassifier(product);
-  if (result.confidence > 0.7) {
-    console.log(`✓ Keyword classified: ${result.classifiedCategory} (${(result.confidence * 100).toFixed(1)}%)`);
-    return result;
-  }
+  // result = await keywordClassifier(product);
+  // if (result.confidence > 0.7) {
+  //   console.log(`✓ Keyword classified: ${result.classifiedCategory} (${(result.confidence * 100).toFixed(1)}%)`);
+  //   return result;
+  // }
 
   // 3. Fall back to GPT-4 (if available and configured)
-  if (process.env.OPENAI_API_KEY) {
-    result = await gptClassifier(product);
-    console.log(`✓ GPT-4 classified: ${result.classifiedCategory}`);
-    return result;
-  }
+  // if (process.env.OPENAI_API_KEY) {
+  //   result = await gptClassifier(product);
+  //   console.log(`✓ GPT-4 classified: ${result.classifiedCategory}`);
+  //   return result;
+  // }
 
   // 4. Return best result so far or unclassified
   return result || {

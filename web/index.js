@@ -12,8 +12,8 @@ import PrivacyWebhookHandlers from "./privacy.js";
 
 // 🧠 Admin Imports
 import adminRoutes from "./routes/admin.js";
-import { adminCors } from "./middlewares/adminAuth.js";
-import { errorLogger, metricsHandler } from "./middlewares/performanceLogger.js";
+// import { adminCors } from "./middlewares/adminAuth.js";
+import { errorLogger, metricsHandler } from "./middlewares/logging.js";
 import { initializeCache } from "./utils/cache.js";
 
 dotenv.config();
@@ -89,7 +89,7 @@ app.post("/api/products", async (_req, res) => {
    ========================================================================== */
 
 // Admin routes use their own CORS + API key auth (not Shopify session)
-app.use("/api/admin", adminCors);
+// app.use("/api/admin", adminCors);
 app.use("/api/admin", adminRoutes);
 
 /* ============================================================================

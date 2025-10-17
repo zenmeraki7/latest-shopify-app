@@ -7,17 +7,17 @@ import {
   overrideClassification,
   getAnalytics,
   bulkReclassifyProducts,
-  getTrainingData,
+  // getTrainingData,
   retrainModel,
   getModelStatus,
 } from "../controllers/adminController.js";
 import { adminAuth } from "../middlewares/adminAuth.js";
 import {
-  adminRateLimiter,
-  strictRateLimiter,
-  loginRateLimiter,
-} from "../middlewares/rateLimitAdmin.js";
-import { performanceLogger, errorLogger } from "../middlewares/performanceLogger.js";
+  // adminRateLimiter,
+  createStrictRateLimiter,
+  createLoginRateLimite,
+} from "../middlewares/rateLimiter.js";
+import { performanceLogger, errorLogger } from "../middlewares/logging.js";
 import { validate } from "../middlewares/validate.js";
 import {
   overrideSchema,
@@ -44,7 +44,7 @@ router.use(performanceLogger);
  * POST /api/admin/login
  * Body: { apiKey: string }
  */
-router.post("/login", loginRateLimiter, loginAdmin);
+router.post("/login", createLoginRateLimite, loginAdmin);
 
 /* ============================================================================
    🔐 Protected Routes
@@ -54,7 +54,7 @@ router.post("/login", loginRateLimiter, loginAdmin);
 router.use(adminAuth);
 
 // Apply general API limiter
-router.use(adminRateLimiter);
+// router.use(adminRateLimiter);
 
 /* ============================================================================
    🩺 Health Check
@@ -98,7 +98,7 @@ router.get("/products/:id", getProductDetails);
  * Reclassify one product via AI
  * POST /api/admin/products/:id/reclassify
  */
-router.post("/products/:id/reclassify", strictRateLimiter, reclassifyProduct);
+router.post("/products/:id/reclassify", createStrictRateLimiter, reclassifyProduct);
 
 /**
  * Manual classification override
@@ -107,7 +107,7 @@ router.post("/products/:id/reclassify", strictRateLimiter, reclassifyProduct);
 router.post(
   "/products/:id/override",
   validate(overrideSchema),
-  strictRateLimiter,
+  createStrictRateLimiter,
   overrideClassification
 );
 
@@ -117,7 +117,7 @@ router.post(
  */
 router.post(
   "/products/bulk-reclassify",
-  strictRateLimiter,
+  createStrictRateLimiter,
   validate(bulkReclassifySchema),
   bulkReclassifyProducts
 );
@@ -130,13 +130,13 @@ router.post(
  * Export ML training data
  * GET /api/admin/ml/training-data
  */
-router.get("/ml/training-data", validate(trainingDataQuerySchema), getTrainingData);
+// router.get("/ml/training-data", validate(trainingDataQuerySchema), getTrainingData);
 
 /**
  * Trigger ML model retraining
  * POST /api/admin/ml/retrain
  */
-router.post("/ml/retrain", strictRateLimiter, validate(retrainModelSchema), retrainModel);
+router.post("/ml/retrain", createStrictRateLimiter, validate(retrainModelSchema), retrainModel);
 
 /**
  * Get ML model status
@@ -152,7 +152,7 @@ router.get("/ml/status", getModelStatus);
  * Clear analytics cache
  * POST /api/admin/cache/clear
  */
-router.post("/cache/clear", strictRateLimiter, async (req, res) => {
+router.post("/cache/clear", createStrictRateLimiter, async (req, res) => {
   try {
     const { clearCache } = await import("../utils/cache.js");
     await clearCache();

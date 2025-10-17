@@ -1,5 +1,7 @@
-// Instead of this:
-import { overrideSchema } from "../validators/adminSchemas.js";
-
-// Do this:
-import { overrideSchema } from "../validators";
+export {
+  overrideSchema,
+  bulkReclassifySchema,
+  analyticsQuerySchema,
+  trainingDataQuerySchema,
+  retrainModelSchema,
+} from "./adminSchemas.js";

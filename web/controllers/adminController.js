@@ -2,7 +2,7 @@ import crypto from "crypto";
 import axios from "axios";
 import axiosRetry from "axios-retry";
 import pLimit from "p-limit";
-import Product from "../models/Product.js";
+import Product from "../models/Products.js";
 import System from "../models/System.js";
 import { classifyProduct } from "../services/classificationOrchestrator.js";
 import { getCachedData, setCachedData } from "../utils/cache.js";

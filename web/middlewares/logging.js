@@ -127,3 +127,4 @@ export async function metricsHandler(req, res) {
     res.status(500).json({ error: "Failed to export metrics" });
   }
 }
+export { requestDuration };

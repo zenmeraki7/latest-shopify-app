@@ -107,7 +107,7 @@ async function buildLimiter(config, scope, redisPrefix) {
  * - 5 login attempts per 15 minutes per IP
  * - Skips successful logins
  */
-export async function createLoginRateLimiter() {
+export async function createLoginRateLimite() {
   return buildLimiter(
     {
       windowMs: 15 * 60 * 1000, // 15 min
