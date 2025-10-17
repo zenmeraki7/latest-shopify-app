@@ -3,16 +3,22 @@ import { join } from "path";
 import { readFileSync } from "fs";
 import express from "express";
 import serveStatic from "serve-static";
+import cors from "cors";
+import dotenv from "dotenv";
 
 import shopify from "./shopify.js";
 import productCreator from "./product-creator.js";
 import PrivacyWebhookHandlers from "./privacy.js";
 
-const PORT = parseInt(
-  process.env.BACKEND_PORT || process.env.PORT || "3000",
-  10
-);
+// 🧠 Admin Imports
+import adminRoutes from "./routes/admin.js";
+import { adminCors } from "./middlewares/adminAuth.js";
+import { errorLogger, metricsHandler } from "./middlewares/performanceLogger.js";
+import { initializeCache } from "./utils/cache.js";
 
+dotenv.config();
+
+const PORT = parseInt(process.env.BACKEND_PORT || process.env.PORT || "3000", 10);
 const STATIC_PATH =
   process.env.NODE_ENV === "production"
     ? `${process.cwd()}/frontend/dist`
@@ -20,7 +26,20 @@ const STATIC_PATH =
 
 const app = express();
 
-// Set up Shopify authentication and webhook handling
+/* ============================================================================
+   ⚙️ GLOBAL MIDDLEWARE
+   ========================================================================== */
+
+// Regular CORS for merchant-facing Shopify routes
+app.use(cors());
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true }));
+
+/* ============================================================================
+   🔐 SHOPIFY APP ROUTES
+   ========================================================================== */
+
+// Authentication + Webhooks
 app.get(shopify.config.auth.path, shopify.auth.begin());
 app.get(
   shopify.config.auth.callbackPath,
@@ -32,12 +51,12 @@ app.post(
   shopify.processWebhooks({ webhookHandlers: PrivacyWebhookHandlers })
 );
 
-// If you are adding routes outside of the /api path, remember to
-// also add a proxy rule for them in web/frontend/vite.config.js
-
+// All /api/* routes require a valid Shopify session
 app.use("/api/*", shopify.validateAuthenticatedSession());
 
-app.use(express.json());
+/* ============================================================================
+   🧩 SHOPIFY EXAMPLE ROUTES (for testing)
+   ========================================================================== */
 
 app.get("/api/products/count", async (_req, res) => {
   const client = new shopify.api.clients.Graphql({
@@ -56,24 +75,36 @@ app.get("/api/products/count", async (_req, res) => {
 });
 
 app.post("/api/products", async (_req, res) => {
-  let status = 200;
-  let error = null;
-
   try {
     await productCreator(res.locals.shopify.session);
+    res.status(200).send({ success: true });
   } catch (e) {
-    console.log(`Failed to process products/create: ${e.message}`);
-    status = 500;
-    error = e.message;
+    console.error(`Failed to create products: ${e.message}`);
+    res.status(500).send({ success: false, error: e.message });
   }
-  res.status(status).send({ success: status === 200, error });
 });
 
+/* ============================================================================
+   🧠 ADMIN API ROUTES (Non-Shopify)
+   ========================================================================== */
+
+// Admin routes use their own CORS + API key auth (not Shopify session)
+app.use("/api/admin", adminCors);
+app.use("/api/admin", adminRoutes);
+
+/* ============================================================================
+   📈 METRICS ENDPOINT (Prometheus)
+   ========================================================================== */
+app.get("/metrics", metricsHandler);
+
+/* ============================================================================
+   🌐 FRONTEND (Shopify Embedded App)
+   ========================================================================== */
 app.use(shopify.cspHeaders());
 app.use(serveStatic(STATIC_PATH, { index: false }));
 
-app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
-  return res
+app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res) => {
+  res
     .status(200)
     .set("Content-Type", "text/html")
     .send(
@@ -83,4 +114,36 @@ app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
     );
 });
 
-app.listen(PORT);
+/* ============================================================================
+   💥 ERROR HANDLING
+   ========================================================================== */
+app.use(errorLogger);
+
+app.use((req, res) => {
+  res.status(404).json({ error: "Route not found" });
+});
+
+/* ============================================================================
+   🚀 SERVER STARTUP
+   ========================================================================== */
+async function startServer() {
+  try {
+    await initializeCache();
+    console.info("[SERVER] ✅ Cache initialized");
+
+    app.listen(PORT, () => {
+      console.info(`\n🌍 Server running on port ${PORT}`);
+      console.info(`🛍 Shopify app at /`);
+      console.info(`🔐 Admin API at /api/admin`);
+      if (process.env.ENABLE_METRICS === "true")
+        console.info(`📈 Prometheus metrics at /metrics`);
+    });
+  } catch (err) {
+    console.error("[SERVER] ❌ Startup failed:", err);
+    process.exit(1);
+  }
+}
+
+startServer();
+
+export default app;
