@@ -148,6 +148,7 @@ export class ShopifyService {
       console.log(
         `🎯 Completed syncing ${totalCount} products for ${this.shop}`
       );
+      
       return {
         message: "Products synced successfully",
         count: totalCount,

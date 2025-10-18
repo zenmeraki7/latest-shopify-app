@@ -49,7 +49,7 @@ app.use(express.json());
 
 app.use("/api/products", productRoutes);
 app.use("/api/category", categoryRoutes);
-app.use("/api/merchant", merchantsRoutes);
+app.use("/admin/merchant", merchantsRoutes);
 
 app.get("/api/products/count", async (_req, res) => {
   const client = new shopify.api.clients.Graphql({

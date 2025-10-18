@@ -2,7 +2,7 @@
 
 client_id = "cf03fe5e07a942b9d58fc9815aa65d69"
 name = "latest-app"
-application_url = "https://judy-llc-player-engineering.trycloudflare.com"
+application_url = "https://expenditures-humanities-variance-strip.trycloudflare.com"
 embedded = true
 
 [build]
@@ -17,6 +17,6 @@ scopes = "write_products"
 
 [auth]
 redirect_urls = [
-  "https://judy-llc-player-engineering.trycloudflare.com/api/auth",
-  "https://judy-llc-player-engineering.trycloudflare.com/api/auth/callback"
+  "https://expenditures-humanities-variance-strip.trycloudflare.com/api/auth",
+  "https://expenditures-humanities-variance-strip.trycloudflare.com/api/auth/callback"
 ]
