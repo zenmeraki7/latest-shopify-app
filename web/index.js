@@ -47,7 +47,7 @@ app.use("/api/*", shopify.validateAuthenticatedSession());
 
 app.use(express.json());
 
-app.use("/api/products", productRoutes);
+app.use("/admin/products", productRoutes);
 app.use("/api/category", categoryRoutes);
 app.use("/admin/merchant", merchantsRoutes);
 

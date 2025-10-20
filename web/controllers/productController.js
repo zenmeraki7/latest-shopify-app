@@ -2,6 +2,8 @@
 import axios from "axios";
 import Product from "../models/Product.js";
 import { categoriseQueue } from "../queue/categoriseQueue.js";
+import CategorizationHistory from "../models/CategorizationHistory.js";
+import Store from "../models/Store.js";
 
 export const getProductsByShop = async (req, res) => {
   try {
@@ -118,13 +120,29 @@ export const productCategoriseByShop = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Shop parameter is required" });
     }
-
+    const shopExist = await Store.findOne({ shopUrl: shop });
+    if (!shopExist) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Shop not found" });
+    }
+    const totalProducts = await Product.countDocuments({ shop });
+    const totalBatches = Math.ceil(totalProducts / 100);
+    const newHistory = await CategorizationHistory.create({
+      shop,
+      totalProducts,
+      totalBatches,
+    });
     // ➕ Add job to queue
-    await categoriseQueue.add("categoriseShopProducts", { shop });
+    await categoriseQueue.add("categoriseShopProducts", {
+      shop,
+      historyId: newHistory._id,
+    });
 
     res.status(200).json({
       success: true,
       message: `Categorization job added to queue for shop: ${shop}`,
+      data: newHistory,
     });
   } catch (error) {
     console.error("Error adding job to queue:", error.message);
