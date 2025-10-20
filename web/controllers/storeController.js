@@ -93,6 +93,24 @@ export const getAllStores = async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 };
+export const getStoreById = async (req, res) => {
+  try {
+    const { shop } = req.params;
+
+    const shopDetails = await Store.findOne({ shopUrl: shop }).select(
+      "-accessToken"
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Store fetched successfully",
+      data: shopDetails,
+    });
+  } catch (error) {
+    console.error("Error fetching stores:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
 
 export const getMerchantsOverview = async (req, res) => {
   try {
