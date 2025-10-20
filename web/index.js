@@ -13,6 +13,7 @@ import merchantsRoutes from "./routes/store.js";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 import { appInstallMiddleware } from "./middlewares/appInstallMiddleware.js";
+import cors from "cors";
 dotenv.config();
 
 const PORT = parseInt(
@@ -26,7 +27,7 @@ const STATIC_PATH =
     : `${process.cwd()}/frontend/`;
 
 const app = express();
-
+app.use(cors());
 // Set up Shopify authentication and webhook handling
 app.get(shopify.config.auth.path, shopify.auth.begin());
 app.get(
