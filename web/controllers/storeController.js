@@ -1,4 +1,4 @@
-// backend/controllers/productController.js
+// backend/controllers/storeController.js
 import Product from "../models/Product.js";
 import Store from "../models/Store.js";
 

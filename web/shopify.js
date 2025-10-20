@@ -1,31 +1,80 @@
-import { BillingInterval, LATEST_API_VERSION } from "@shopify/shopify-api";
+import { BillingInterval } from "@shopify/shopify-api";
 import { shopifyApp } from "@shopify/shopify-app-express";
-import { SQLiteSessionStorage } from "@shopify/shopify-app-session-storage-sqlite";
+import { MongoClient } from "mongodb";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-10";
 
-const DB_PATH = `${process.cwd()}/database.sqlite`;
+const MONGODB_URI = process.env.MONGO_URI || process.env.MONGODB_URI || "mongodb://localhost:27017";
+const DB_NAME = "shopify-app";
+const SESSIONS_COLLECTION = "sessions";
 
-// The transactions with Shopify will always be marked as test transactions, unless NODE_ENV is production.
-// See the ensureBilling helper to learn more about billing in this template.
+let mongoClient;
+let db;
+
+// Initialize MongoDB connection
+async function initializeDatabase() {
+  mongoClient = new MongoClient(MONGODB_URI);
+  await mongoClient.connect();
+  db = mongoClient.db(DB_NAME);
+  
+  // Create index for faster queries
+  await db.collection(SESSIONS_COLLECTION).createIndex({ id: 1 }, { unique: true });
+  await db.collection(SESSIONS_COLLECTION).createIndex({ shop: 1 });
+}
+
+// MongoDB Session Storage
+class MongoDBSessionStorage {
+  async storeSession(session) {
+    const collection = db.collection(SESSIONS_COLLECTION);
+    await collection.updateOne(
+      { id: session.id },
+      { $set: session },
+      { upsert: true }
+    );
+  }
+
+  async loadSession(id) {
+    const collection = db.collection(SESSIONS_COLLECTION);
+    const session = await collection.findOne({ id });
+    return session || undefined;
+  }
+
+  async deleteSession(id) {
+    const collection = db.collection(SESSIONS_COLLECTION);
+    await collection.deleteOne({ id });
+  }
+
+  async deleteSessions(ids) {
+    const collection = db.collection(SESSIONS_COLLECTION);
+    await collection.deleteMany({ id: { $in: ids } });
+  }
+
+  async findSessionsByShop(shop) {
+    const collection = db.collection(SESSIONS_COLLECTION);
+    return await collection.find({ shop }).toArray();
+  }
+}
+
 const billingConfig = {
   "My Shopify One-Time Charge": {
-    // This is an example configuration that would do a one-time charge for $5 (only USD is currently supported)
     amount: 5.0,
     currencyCode: "USD",
     interval: BillingInterval.OneTime,
   },
 };
 
+// Initialize database before creating the app
+await initializeDatabase();
+
 const shopify = shopifyApp({
   api: {
-    apiVersion: LATEST_API_VERSION,
+    apiVersion: "2024-10",
     restResources,
     future: {
       customerAddressDefaultFix: true,
       lineItemBilling: true,
       unstable_managedPricingSupport: true,
     },
-    billing: undefined, // or replace with billingConfig above to enable example billing
+    billing: undefined,
   },
   auth: {
     path: "/api/auth",
@@ -34,8 +83,15 @@ const shopify = shopifyApp({
   webhooks: {
     path: "/api/webhooks",
   },
-  // This should be replaced with your preferred storage strategy
-  sessionStorage: new SQLiteSessionStorage(DB_PATH),
+  sessionStorage: new MongoDBSessionStorage(),
+});
+
+// Graceful shutdown
+process.on("SIGINT", async () => {
+  if (mongoClient) {
+    await mongoClient.close();
+  }
+  process.exit(0);
 });
 
 export default shopify;

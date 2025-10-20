@@ -1,4 +1,4 @@
-// backend/routes/products.js
+// backend/routes/store.js
 import express from "express";
 import { getAllStores, getMerchantsOverview } from "../controllers/storeController.js";
 

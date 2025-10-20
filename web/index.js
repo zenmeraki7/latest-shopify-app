@@ -11,8 +11,8 @@ import productRoutes from "./routes/products.js";
 import categoryRoutes from "./routes/category.js";
 import merchantsRoutes from "./routes/store.js";
 import dotenv from "dotenv";
-import mongoose from "mongoose";
 import { appInstallMiddleware } from "./middlewares/appInstallMiddleware.js";
+
 dotenv.config();
 
 const PORT = parseInt(
@@ -40,17 +40,17 @@ app.post(
   shopify.processWebhooks({ webhookHandlers: PrivacyWebhookHandlers })
 );
 
-// If you are adding routes outside of the /api path, remember to
-// also add a proxy rule for them in web/frontend/vite.config.js
-
+// ✅ IMPORTANT: Register all API routes BEFORE the catch-all routes
 app.use("/api/*", shopify.validateAuthenticatedSession());
 
 app.use(express.json());
 
+// API Routes - these must be before the catch-all route
 app.use("/api/products", productRoutes);
 app.use("/api/category", categoryRoutes);
-app.use("/admin/merchant", merchantsRoutes);
+app.use("/admin/merchant", merchantsRoutes);  // ✅ Non-authenticated admin routes
 
+// Get product count
 app.get("/api/products/count", async (_req, res) => {
   const client = new shopify.api.clients.Graphql({
     session: res.locals.shopify.session,
@@ -67,6 +67,7 @@ app.get("/api/products/count", async (_req, res) => {
   res.status(200).send({ count: countData.data.productsCount.count });
 });
 
+// Create products
 app.post("/api/products", async (_req, res) => {
   let status = 200;
   let error = null;
@@ -81,9 +82,11 @@ app.post("/api/products", async (_req, res) => {
   res.status(status).send({ success: status === 200, error });
 });
 
+// ✅ CSP and static files - AFTER API routes
 app.use(shopify.cspHeaders());
 app.use(serveStatic(STATIC_PATH, { index: false }));
 
+// ✅ Catch-all route LAST - serves frontend for all other paths
 app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
   return res
     .status(200)
@@ -97,8 +100,5 @@ app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
-  mongoose
-    .connect(process.env.MONGO_URI)
-    .then(() => console.log("MongoDB connected"))
-    .catch((err) => console.log(err));
+  // MongoDB is already initialized in shopify.js
 });
