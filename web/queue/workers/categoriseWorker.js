@@ -39,7 +39,7 @@ export const categoriseWorker = new Worker(
       // 🧩 Fetch products for this batch
       const products = await Product.find({
         shop,
-        isPredictionCompleted: { $ne: true },
+        // isPredictionCompleted: { $ne: true },
       })
         .skip(batchIndex * BATCH_SIZE)
         .limit(BATCH_SIZE)
