@@ -25,7 +25,7 @@ export const categoriseWorker = new Worker(
 
     const totalProducts = await Product.countDocuments({
       shop,
-      isPredictionCompleted: { $ne: true },
+      // isPredictionCompleted: { $ne: true },
     });
     const totalBatches = Math.ceil(totalProducts / BATCH_SIZE);
 
