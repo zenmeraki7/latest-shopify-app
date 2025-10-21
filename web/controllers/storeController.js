@@ -10,6 +10,7 @@ export const getAllStores = async (req, res) => {
       search = "",
     } = req.query;
 
+    
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // 🧠 Build search filter (optional)
