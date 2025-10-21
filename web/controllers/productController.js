@@ -2,15 +2,19 @@
 import axios from "axios";
 import Product from "../models/Product.js";
 import { categoriseQueue } from "../queue/categoriseQueue.js";
+import CategorizationHistory from "../models/CategorizationHistory.js";
+import Store from "../models/Store.js";
 
+// backend/controllers/productController.js
 export const getProductsByShop = async (req, res) => {
   try {
     const { shop } = req.params;
     const {
       page = 1,
-      limit = 10,
+      limit = 100,
       sort = "-createdAt",
       search = "",
+      status = "",
     } = req.query;
 
     if (!shop) {
@@ -21,26 +25,40 @@ export const getProductsByShop = async (req, res) => {
 
     // 🔍 Search filter
     const query = { shop };
+    
     if (search) {
       query.$or = [
         { title: { $regex: search, $options: "i" } },
         { productType: { $regex: search, $options: "i" } },
         { tags: { $regex: search, $options: "i" } },
         { category: { $regex: search, $options: "i" } },
+        { handle: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // 🎯 Status filter
+    if (status === "classified") {
+      query.isPredictionCompleted = true;
+      query.isNeedReview = false;
+    } else if (status === "needs_review") {
+      query.$or = [
+        { isNeedReview: true },
+        { isPredictionCompleted: false },
       ];
     }
 
     // 📄 Pagination setup
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // ⚙️ Fetch products with selected fields
+    // ⚙️ Fetch products with ALL necessary fields
     const products = await Product.find(query)
       .sort(sort)
       .skip(skip)
       .limit(parseInt(limit))
+      .populate('category_prediction_result.categoryRef', 'name path') // Populate category if needed
       .select(
-        "shopifyId title handle productType tags category imageUrl seoTitle seoDescription createdAt updatedAt"
-      ); // ✅ Only include useful fields
+        "_id shopifyId title handle productType tags category imageUrl seoTitle seoDescription category_prediction_result isPredictionCompleted isNeedReview shop createdAt updatedAt"
+      );
 
     // 🧮 Count total for pagination
     const totalProducts = await Product.countDocuments(query);
@@ -118,13 +136,29 @@ export const productCategoriseByShop = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Shop parameter is required" });
     }
-
+    const shopExist = await Store.findOne({ shopUrl: shop });
+    if (!shopExist) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Shop not found" });
+    }
+    const totalProducts = await Product.countDocuments({ shop });
+    const totalBatches = Math.ceil(totalProducts / 100);
+    const newHistory = await CategorizationHistory.create({
+      shop,
+      totalProducts,
+      totalBatches,
+    });
     // ➕ Add job to queue
-    await categoriseQueue.add("categoriseShopProducts", { shop });
+    await categoriseQueue.add("categoriseShopProducts", {
+      shop,
+      historyId: newHistory._id,
+    });
 
     res.status(200).json({
       success: true,
       message: `Categorization job added to queue for shop: ${shop}`,
+      data: newHistory,
     });
   } catch (error) {
     console.error("Error adding job to queue:", error.message);

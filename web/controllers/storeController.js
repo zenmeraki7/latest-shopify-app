@@ -1,7 +1,6 @@
 // backend/controllers/storeController.js
 import Product from "../models/Product.js";
 import Store from "../models/Store.js";
-
 export const getAllStores = async (req, res) => {
   try {
     const {
@@ -11,25 +10,75 @@ export const getAllStores = async (req, res) => {
       search = "",
     } = req.query;
 
-    const query = {};
-
-    // 🔍 If search term provided, match it with shopUrl
-    if (search) {
-      query.shopUrl = { $regex: search, $options: "i" };
-    }
-
-    // 📄 Pagination values
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // ⚙️ Fetch stores with sorting, search, and pagination
-    const stores = await Store.find(query)
-      .sort(sort)
-      .skip(skip)
-      .limit(parseInt(limit))
-      .select("-accessToken"); // exclude accessToken from the response
+    // 🧠 Build search filter (optional)
+    const matchStage = {};
+    if (search) {
+      matchStage.shopUrl = { $regex: search, $options: "i" };
+    }
 
-    // 🧮 Total count for pagination
-    const totalStores = await Store.countDocuments(query);
+    // 🧩 Aggregation pipeline
+    const stores = await Store.aggregate([
+      { $match: matchStage },
+
+      // 🧷 Lookup products related to the store
+      {
+        $lookup: {
+          from: "products",
+          localField: "shopUrl", // or "_id" if Product uses storeId
+          foreignField: "shop",
+          as: "products",
+        },
+      },
+
+      // ➕ Add computed fields
+      {
+        $addFields: {
+          totalProducts: { $size: "$products" },
+          classifiedProducts: {
+            $size: {
+              $filter: {
+                input: "$products",
+                as: "prod",
+                cond: {
+                  $and: [
+                    { $eq: ["$$prod.isPredictionCompleted", true] },
+                    // Uncomment if needed:
+                    // { $eq: ["$$prod.isNeedReview", false] },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      },
+
+      // 🎯 Project only needed fields
+      {
+        $project: {
+          _id: 1,
+          shopUrl: 1,
+          totalProducts: 1,
+          classifiedProducts: 1,
+          createdAt: 1,
+        },
+      },
+
+      // 🧮 Sort (dynamic)
+      {
+        $sort: {
+          [sort.replace("-", "")]: sort.startsWith("-") ? -1 : 1,
+        },
+      },
+
+      // 📄 Pagination
+      { $skip: skip },
+      { $limit: parseInt(limit) },
+    ]);
+
+    // 🧮 Total count (for pagination UI)
+    const totalStores = await Store.countDocuments(matchStage);
 
     res.status(200).json({
       success: true,
@@ -38,6 +87,24 @@ export const getAllStores = async (req, res) => {
       totalPages: Math.ceil(totalStores / limit),
       totalStores,
       stores,
+    });
+  } catch (error) {
+    console.error("Error fetching stores:", error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+export const getStoreById = async (req, res) => {
+  try {
+    const { shop } = req.params;
+
+    const shopDetails = await Store.findOne({ shopUrl: shop }).select(
+      "-accessToken"
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Store fetched successfully",
+      data: shopDetails,
     });
   } catch (error) {
     console.error("Error fetching stores:", error.message);

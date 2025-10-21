@@ -13,6 +13,7 @@ import merchantsRoutes from "./routes/store.js";
 import dotenv from "dotenv";
 import { appInstallMiddleware } from "./middlewares/appInstallMiddleware.js";
 
+import cors from "cors";
 dotenv.config();
 
 const PORT = parseInt(
@@ -26,7 +27,7 @@ const STATIC_PATH =
     : `${process.cwd()}/frontend/`;
 
 const app = express();
-
+app.use(cors());
 // Set up Shopify authentication and webhook handling
 app.get(shopify.config.auth.path, shopify.auth.begin());
 app.get(
@@ -45,8 +46,8 @@ app.use("/api/*", shopify.validateAuthenticatedSession());
 
 app.use(express.json());
 
-// API Routes - these must be before the catch-all route
-app.use("/api/products", productRoutes);
+
+app.use("/admin/products", productRoutes);
 app.use("/api/category", categoryRoutes);
 app.use("/admin/merchant", merchantsRoutes);  // ✅ Non-authenticated admin routes
 

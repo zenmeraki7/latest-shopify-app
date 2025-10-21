@@ -71,8 +71,5 @@ const ProductCategorySchema = new mongoose.Schema(
   }
 );
 
-export const ProductCategory = mongoose.model(
-  "categories",
-  ProductCategorySchema
-);
-
+const ProductCategory = mongoose.model("categories", ProductCategorySchema);
+export default ProductCategory;
