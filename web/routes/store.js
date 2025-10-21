@@ -12,3 +12,4 @@ router.get("/get-details/:shop", getStoreById);
 router.get("/get-overview", getMerchantsOverview);
 
 export default router;
+
