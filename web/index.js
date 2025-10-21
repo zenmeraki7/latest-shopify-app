@@ -21,6 +21,8 @@ const PORT = parseInt(
   10
 );
 
+
+
 const STATIC_PATH =
   process.env.NODE_ENV === "production"
     ? `${process.cwd()}/frontend/dist`
