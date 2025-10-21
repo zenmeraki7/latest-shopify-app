@@ -8,9 +8,10 @@ export const getProductsByShop = async (req, res) => {
     const { shop } = req.params;
     const {
       page = 1,
-      limit = 10,
+      limit = 100,
       sort = "-createdAt",
       search = "",
+      status = "",
     } = req.query;
 
     if (!shop) {
@@ -21,26 +22,40 @@ export const getProductsByShop = async (req, res) => {
 
     // 🔍 Search filter
     const query = { shop };
+    
     if (search) {
       query.$or = [
         { title: { $regex: search, $options: "i" } },
         { productType: { $regex: search, $options: "i" } },
         { tags: { $regex: search, $options: "i" } },
         { category: { $regex: search, $options: "i" } },
+        { handle: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // 🎯 Status filter
+    if (status === "classified") {
+      query.isPredictionCompleted = true;
+      query.isNeedReview = false;
+    } else if (status === "needs_review") {
+      query.$or = [
+        { isNeedReview: true },
+        { isPredictionCompleted: false },
       ];
     }
 
     // 📄 Pagination setup
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // ⚙️ Fetch products with selected fields
+    // ⚙️ Fetch products with ALL necessary fields
     const products = await Product.find(query)
       .sort(sort)
       .skip(skip)
       .limit(parseInt(limit))
+      .populate('category_prediction_result.categoryRef', 'name path') // Populate category if needed
       .select(
-        "shopifyId title handle productType tags category imageUrl seoTitle seoDescription createdAt updatedAt"
-      ); // ✅ Only include useful fields
+        "_id shopifyId title handle productType tags category imageUrl seoTitle seoDescription category_prediction_result isPredictionCompleted isNeedReview shop createdAt updatedAt"
+      );
 
     // 🧮 Count total for pagination
     const totalProducts = await Product.countDocuments(query);
