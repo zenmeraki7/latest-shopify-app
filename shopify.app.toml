@@ -1,22 +1,43 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "cf03fe5e07a942b9d58fc9815aa65d69"
-name = "latest-app"
-application_url = "https://expenditures-humanities-variance-strip.trycloudflare.com"
+client_id = "20f31d269398d5f23df95d0450e772e9"
+name = "test-app"
+application_url = "https://award-metric-job-productivity.trycloudflare.com"
 embedded = true
-
-[build]
-automatically_update_urls_on_dev = true
+handle = "test-app-11537"
 
 [webhooks]
-api_version = "2026-01"
+api_version = "2025-04"
+
+  [[webhooks.subscriptions]]
+  uri = "https://contributing-cole-senate-dried.trycloudflare.com/gdpr/customer_data_erasure"
+  compliance_topics = [ "customers/redact" ]
+
+  [[webhooks.subscriptions]]
+  uri = "https://contributing-cole-senate-dried.trycloudflare.com/gdpr/customer_data_request"
+  compliance_topics = [ "customers/data_request" ]
+
+  [[webhooks.subscriptions]]
+  uri = "https://contributing-cole-senate-dried.trycloudflare.com/gdpr/shop_data_erasure"
+  compliance_topics = [ "shop/redact" ]
+
+  [[webhooks.subscriptions]]
+  topics = [ "products/create", "bulk_operations/finish" ]
+  uri = "https://a50e-2409-4073-307-d512-1554-bf40-8d5f-a82.ngrok-free.app/api/webhooks"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products"
+scopes = "read_products,write_products"
 
 [auth]
 redirect_urls = [
-  "https://expenditures-humanities-variance-strip.trycloudflare.com/api/auth",
-  "https://expenditures-humanities-variance-strip.trycloudflare.com/api/auth/callback"
+  "https://award-metric-job-productivity.trycloudflare.com/auth/callback",
+  "https://award-metric-job-productivity.trycloudflare.com/auth/shopify/callback",
+  "https://award-metric-job-productivity.trycloudflare.com/api/auth/callback"
 ]
+
+[pos]
+embedded = false
+
+[build]
+automatically_update_urls_on_dev = true
