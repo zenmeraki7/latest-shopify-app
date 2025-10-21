@@ -11,7 +11,7 @@
     "generate": "shopify app generate",
     "deploy": "shopify app deploy"
   },
-  "dependencies": {},
+  
   "author": "DELL",
   "private": true,
   "workspaces": [
