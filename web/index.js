@@ -1,27 +1,31 @@
 // @ts-check
+// IMPORTANT: Load dotenv FIRST, before any other imports that need env variables
+import dotenv from "dotenv";
+dotenv.config();
+
+// Add debug logging
+console.log("MONGO_URI loaded:", !!process.env.MONGO_URI);
+
+// Now import everything else
 import { join } from "path";
 import { readFileSync } from "fs";
 import express from "express";
 import serveStatic from "serve-static";
+import mongoose from "mongoose";
+import cors from "cors";
 
-import shopify from "./shopify.js";
+import shopify from "./shopify.js";  // This now has access to env variables
 import productCreator from "./product-creator.js";
 import PrivacyWebhookHandlers from "./privacy.js";
 import productRoutes from "./routes/products.js";
 import categoryRoutes from "./routes/category.js";
 import merchantsRoutes from "./routes/store.js";
-import dotenv from "dotenv";
-import mongoose from "mongoose";
 import { appInstallMiddleware } from "./middlewares/appInstallMiddleware.js";
-import cors from "cors";
-dotenv.config();
 
 const PORT = parseInt(
   process.env.BACKEND_PORT || process.env.PORT || "3000",
   10
 );
-
-
 
 const STATIC_PATH =
   process.env.NODE_ENV === "production"
@@ -30,6 +34,7 @@ const STATIC_PATH =
 
 const app = express();
 app.use(cors());
+
 // Set up Shopify authentication and webhook handling
 app.get(shopify.config.auth.path, shopify.auth.begin());
 app.get(
@@ -42,9 +47,6 @@ app.post(
   shopify.config.webhooks.path,
   shopify.processWebhooks({ webhookHandlers: PrivacyWebhookHandlers })
 );
-
-// If you are adding routes outside of the /api path, remember to
-// also add a proxy rule for them in web/frontend/vite.config.js
 
 app.use("/api/*", shopify.validateAuthenticatedSession());
 
@@ -77,9 +79,10 @@ app.post("/api/products", async (_req, res) => {
   try {
     await productCreator(res.locals.shopify.session);
   } catch (e) {
-    console.log(`Failed to process products/create: ${e.message}`);
+    const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+    console.log(`Failed to process products/create: ${errorMessage}`);
     status = 500;
-    error = e.message;
+    error = errorMessage;
   }
   res.status(status).send({ success: status === 200, error });
 });
@@ -100,8 +103,14 @@ app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
+  
+  if (!process.env.MONGO_URI) {
+    console.error("❌ MONGO_URI not found in environment");
+    return;
+  }
+  
   mongoose
     .connect(process.env.MONGO_URI)
-    .then(() => console.log("MongoDB connected"))
-    .catch((err) => console.log(err));
+    .then(() => console.log("✅ MongoDB connected"))
+    .catch((err) => console.error("❌ MongoDB error:", err));
 });

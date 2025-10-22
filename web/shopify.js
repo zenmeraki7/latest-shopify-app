@@ -2,14 +2,14 @@ import { BillingInterval } from "@shopify/shopify-api";
 import { shopifyApp } from "@shopify/shopify-app-express";
 import { MongoDBSessionStorage } from "@shopify/shopify-app-session-storage-mongodb";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-10";
-import { MongoClient } from "mongodb";
-import dotenv from "dotenv";
 
-dotenv.config();
+// Remove dotenv import - it's already loaded in index.js
 
-const sessionStorage = new MongoDBSessionStorage(process.env.MONGO_URI);
+const sessionStorage = new MongoDBSessionStorage(
+  process.env.MONGO_URI || "mongodb://localhost:27017/shopify-app",
+  "shopify_sessions"
+);
 
-// Example billing configuration
 const billingConfig = {
   "My Shopify One-Time Charge": {
     amount: 5.0,
@@ -20,14 +20,14 @@ const billingConfig = {
 
 const shopify = shopifyApp({
   api: {
-    apiVersion: "2024-10", // explicit version
+    apiVersion: "2024-10",
     restResources,
     future: {
       customerAddressDefaultFix: true,
       lineItemBilling: true,
       unstable_managedPricingSupport: true,
     },
-    billing: undefined, // or billingConfig
+    billing: undefined,
   },
   auth: {
     path: "/api/auth",
@@ -36,7 +36,7 @@ const shopify = shopifyApp({
   webhooks: {
     path: "/api/webhooks",
   },
-  sessionStorage, // MongoDB session storage
+  sessionStorage,
 });
 
 export default shopify;
