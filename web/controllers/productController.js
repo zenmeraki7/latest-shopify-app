@@ -28,7 +28,12 @@ export const getProductsByShop = async (req, res) => {
         { title: { $regex: search, $options: "i" } },
         { productType: { $regex: search, $options: "i" } },
         { tags: { $regex: search, $options: "i" } },
-        { category: { $regex: search, $options: "i" } },
+        {
+          "category_prediction_result.predicted_category_path": {
+            $regex: search,
+            $options: "i",
+          },
+        },
       ];
     }
 
@@ -41,7 +46,7 @@ export const getProductsByShop = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit))
       .select(
-        "shopifyId title handle productType tags category imageUrl seoTitle seoDescription createdAt updatedAt"
+        "shopifyId title productType category_prediction_result category_prediction_status imageUrl createdAt updatedAt"
       ); // ✅ Only include useful fields
 
     // 🧮 Count total for pagination
@@ -77,7 +82,12 @@ export const getAllProducts = async (req, res) => {
         { title: { $regex: search, $options: "i" } },
         { productType: { $regex: search, $options: "i" } },
         { tags: { $regex: search, $options: "i" } },
-        { category: { $regex: search, $options: "i" } },
+        {
+          "category_prediction_result.predicted_category_path": {
+            $regex: search,
+            $options: "i",
+          },
+        },
         { shop: { $regex: search, $options: "i" } },
       ];
     }
@@ -91,8 +101,8 @@ export const getAllProducts = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit))
       .select(
-        "shopifyId title handle productType tags category imageUrl seoTitle seoDescription shop createdAt updatedAt"
-      ); // ✅ Only needed fields
+        "shopifyId title productType category_prediction_result.predicted_category_path category_prediction_status imageUrl createdAt updatedAt"
+      ); // ✅ Only include useful fields
 
     // 🧮 Count total
     const totalProducts = await Product.countDocuments(query);

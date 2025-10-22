@@ -97,14 +97,44 @@ export const getStoreById = async (req, res) => {
   try {
     const { shop } = req.params;
 
+    // Fetch store details (only once)
     const shopDetails = await Store.findOne({ shopUrl: shop }).select(
-      "-accessToken"
+      "name shopUrl email isProductsSyncing shopOwner"
     );
+
+    // Use aggregation to count all status types in one go
+    const statusCounts = await Product.aggregate([
+      { $match: { shop } },
+      {
+        $group: {
+          _id: "$category_prediction_status",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Convert aggregation output to easy lookup
+    const counts = statusCounts.reduce(
+      (acc, curr) => ({ ...acc, [curr._id]: curr.count }),
+      {}
+    );
+
+    const products_count =
+      (counts["classified"] || 0) +
+      (counts["needs_review"] || 0) +
+      (counts["pending"] || 0) +
+      (counts["other"] || 0);
 
     res.status(200).json({
       success: true,
       message: "Store fetched successfully",
-      data: shopDetails,
+      data: {
+        shopDetails,
+        products_count,
+        classified_products_count: counts["classified"] || 0,
+        review_need_products_count: counts["needs_review"] || 0,
+        pending_products_count: counts["pending"] || 0,
+      },
     });
   } catch (error) {
     console.error("Error fetching stores:", error.message);
@@ -117,11 +147,10 @@ export const getMerchantsOverview = async (req, res) => {
     const merchantsCount = await Store.countDocuments();
     const productsCount = await Product.countDocuments();
     const classified_products = await Product.countDocuments({
-      isPredictionCompleted: true,
+      category_prediction_status: "classified",
     });
     const review_need_products = await Product.countDocuments({
-      isNeedReview: true,
-      isPredictionCompleted: true,
+      category_prediction_status: "needs_review",
     });
     const merchantsOverview = await Store.aggregate([
       {
@@ -144,7 +173,9 @@ export const getMerchantsOverview = async (req, res) => {
                 as: "prod",
                 cond: {
                   $and: [
-                    { $eq: ["$$prod.isPredictionCompleted", true] },
+                    {
+                      $eq: ["$$prod.category_prediction_status", "classified"],
+                    },
                     // { $eq: ["$$prod.isNeedReview", false] },
                   ],
                 },

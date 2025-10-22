@@ -48,7 +48,7 @@ const productSchema = new mongoose.Schema(
       trim: true,
     },
     category_prediction_result: {
-      predicted_category_path: String,
+      predicted_category_path: { type: String,default: null },
       confidence_per_level: [Number],
       overall_confidence: Number,
       categoryRef: {
@@ -56,13 +56,10 @@ const productSchema = new mongoose.Schema(
         ref: "categories",
       },
     },
-    isPredictionCompleted: {
-      type: Boolean,
-      default: false,
-    },
-    isNeedReview: {
-      type: Boolean,
-      default: false,
+    category_prediction_status: {
+      type: String,
+      enum: ["classified", "needs_review", "pending"],
+      default: "pending",
     },
     shop: {
       type: String,
