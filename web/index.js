@@ -3,6 +3,9 @@ import { join } from "path";
 import { readFileSync } from "fs";
 import express from "express";
 import serveStatic from "serve-static";
+import dotenv from "dotenv";
+import mongoose from "mongoose";
+import cors from "cors";
 
 import shopify from "./shopify.js";
 import productCreator from "./product-creator.js";
@@ -10,16 +13,12 @@ import PrivacyWebhookHandlers from "./privacy.js";
 import productRoutes from "./routes/products.js";
 import categoryRoutes from "./routes/category.js";
 import merchantsRoutes from "./routes/store.js";
-import dotenv from "dotenv";
-import mongoose from "mongoose";
+import client from "./config/redisClient.js"; // ✅ Redis Cloud client
 import { appInstallMiddleware } from "./middlewares/appInstallMiddleware.js";
-import cors from "cors";
+
 dotenv.config();
 
-const PORT = parseInt(
-  process.env.BACKEND_PORT || process.env.PORT || "3000",
-  10
-);
+const PORT = parseInt(process.env.BACKEND_PORT || process.env.PORT || "3000", 10);
 
 const STATIC_PATH =
   process.env.NODE_ENV === "production"
@@ -28,7 +27,21 @@ const STATIC_PATH =
 
 const app = express();
 app.use(cors());
-// Set up Shopify authentication and webhook handling
+app.use(express.json());
+
+// ✅ Test Redis connection
+app.get("/test-redis", async (req, res) => {
+  try {
+    await client.set("connection", "Redis Cloud is working!");
+    const result = await client.get("connection");
+    res.send(result);
+  } catch (err) {
+    console.error("Redis test error:", err);
+    res.status(500).send("Redis test failed");
+  }
+});
+
+// ✅ Shopify authentication & webhooks
 app.get(shopify.config.auth.path, shopify.auth.begin());
 app.get(
   shopify.config.auth.callbackPath,
@@ -41,51 +54,38 @@ app.post(
   shopify.processWebhooks({ webhookHandlers: PrivacyWebhookHandlers })
 );
 
-// If you are adding routes outside of the /api path, remember to
-// also add a proxy rule for them in web/frontend/vite.config.js
-
 app.use("/api/*", shopify.validateAuthenticatedSession());
-
-app.use(express.json());
-
 app.use("/admin/products", productRoutes);
 app.use("/api/category", categoryRoutes);
 app.use("/admin/merchant", merchantsRoutes);
 
 app.get("/api/products/count", async (_req, res) => {
-  const client = new shopify.api.clients.Graphql({
+  const gqlClient = new shopify.api.clients.Graphql({
     session: res.locals.shopify.session,
   });
-
-  const countData = await client.request(`
+  const countData = await gqlClient.request(`
     query shopifyProductCount {
       productsCount {
         count
       }
     }
   `);
-
   res.status(200).send({ count: countData.data.productsCount.count });
 });
 
 app.post("/api/products", async (_req, res) => {
-  let status = 200;
-  let error = null;
-
   try {
     await productCreator(res.locals.shopify.session);
+    res.status(200).send({ success: true });
   } catch (e) {
     console.log(`Failed to process products/create: ${e.message}`);
-    status = 500;
-    error = e.message;
+    res.status(500).send({ success: false, error: e.message });
   }
-  res.status(status).send({ success: status === 200, error });
 });
 
 app.use(shopify.cspHeaders());
 app.use(serveStatic(STATIC_PATH, { index: false }));
-
-app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
+app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res) => {
   return res
     .status(200)
     .set("Content-Type", "text/html")
@@ -96,11 +96,21 @@ app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
     );
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-  mongoose
-    .connect(process.env.MONGO_URI)
-    .then(() => console.log("MongoDB connected"))
-    .catch((err) => console.log(err));
-});
+// ✅ Connect to MongoDB, then start server
+async function startServer() {
+  try {
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log("✅ MongoDB connected");
 
+    await client.connect();
+    console.log("✅ Redis Cloud connected");
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running at http://localhost:${PORT}`);
+    });
+  } catch (error) {
+    console.error("❌ Failed to start app:", error);
+  }
+}
+
+startServer();
