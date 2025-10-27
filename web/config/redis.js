@@ -9,6 +9,7 @@ export const redisConnection = new IORedis({
   enableReadyCheck: false,    // Recommended for BullMQ
 });
 
+
 // Optional: Log connection status
 redisConnection.on("connect", () => {
   console.log("✅ Redis connected successfully");
