@@ -2,8 +2,9 @@ import IORedis from "ioredis";
 
 // Create a reusable Redis connection instance
 export const redisConnection = new IORedis({
-  host: "127.0.0.1",   // Redis server host (use your Redis host if remote)
-  port: 6379,          // Default Redis port
+  host: process.env.REDIS_HOST || "127.0.0.1",
+  port: process.env.REDIS_PORT ? Number(process.env.REDIS_PORT) : 6379,
+  password: process.env.REDIS_PASSWORD || undefined,
   maxRetriesPerRequest: null, // Recommended for BullMQ
   enableReadyCheck: false,    // Recommended for BullMQ
 });
