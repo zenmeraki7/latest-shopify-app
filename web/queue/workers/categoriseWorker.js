@@ -8,7 +8,7 @@ import { redisConnection } from "../../config/redis.js";
 
 const BATCH_SIZE = 100;
 const CONFIDENCE_THRESHOLD = 0.4;
-const MAX_LOGS_PER_HISTORY = 1000; // prevent overload
+const MAX_LOGS_PER_HISTORY = 1000;
 
 export const categoriseWorker = new Worker(
   "categoriseQueuee",
@@ -43,121 +43,131 @@ export const categoriseWorker = new Worker(
       })
         .skip(batchIndex * BATCH_SIZE)
         .limit(BATCH_SIZE)
-        .select("_id title");
+        .select("_id title description category");
 
       if (!products.length) break;
 
-      const titleToIdMap = Object.fromEntries(
-        products.map((p) => [p.title, p._id])
+      const predictions = [];
+
+      // 🔁 Loop through each product and call ML API
+      for (const product of products) {
+        try {
+          const body = {
+            tags: product.category || "",
+            title: product.title || "",
+            description: product.description || "",
+          };
+
+          const response = await axios.post(
+            "https://zen-vton-categorise.hf.space/predict",
+            body
+          );
+
+          const result = response.data || {};
+          predictions.push({
+            productId: product._id,
+            predicted_category_path: result.predicted_category_path || null,
+            confidence_per_level: result.confidence_per_level || [],
+          });
+
+          // Small delay to avoid rate-limiting
+          await new Promise((r) => setTimeout(r, 200));
+        } catch (err) {
+          console.error(
+            `❌ Error predicting for product ${product._id}:`,
+            err.message
+          );
+          predictions.push({
+            productId: product._id,
+            predicted_category_path: null,
+            confidence_per_level: [],
+          });
+        }
+      }
+
+      // 🗂️ Collect unique category paths
+      const uniqueCategories = [
+        ...new Set(
+          predictions.map((p) => p.predicted_category_path).filter(Boolean)
+        ),
+      ];
+
+      // Fetch matching categories
+      const categoryDocs = await ProductCategory.find({
+        category_path: { $in: uniqueCategories },
+      });
+
+      const categoriesMap = Object.fromEntries(
+        categoryDocs.map((cat) => [cat.category_path, cat._id])
       );
-      const productTitles = products.map((p) => p.title);
 
-      try {
-        // 🧠 Predict categories via local ML service
-        const response = await axios.post("http://localhost:5000/predict", {
-          products: productTitles,
-        });
-        const predictions = response.data || [];
+      // 🔄 Prepare bulk updates
+      const bulkOps = predictions
+        .map((pred) => {
+          const confidenceArray = pred.confidence_per_level || [];
+          const overallConfidence = confidenceArray.length
+            ? Math.max(...confidenceArray)
+            : null;
 
-        // 🗂️ Collect unique category paths
-        const uniqueCategories = [
-          ...new Set(
-            predictions.map((p) => p.predicted_category_path).filter(Boolean)
-          ),
-        ];
+          const needReview =
+            !pred.predicted_category_path ||
+            overallConfidence === null ||
+            overallConfidence < CONFIDENCE_THRESHOLD;
 
-        // Fetch categories for mapping
-        const categoryDocs = await ProductCategory.find({
-          category_path: { $in: uniqueCategories },
-        });
-        const categoriesMap = Object.fromEntries(
-          categoryDocs.map((cat) => [cat.category_path, cat._id])
-        );
-
-        // 🔄 Prepare updates
-        const bulkOps = predictions
-          .map((pred) => {
-            const productId = titleToIdMap[pred.product];
-            if (!productId) return null;
-
-            const categoryId =
-              categoriesMap[pred.predicted_category_path] || null;
-            const confidenceArray = pred.confidence_per_level || [];
-            const overallConfidence = confidenceArray.length
-              ? Math.max(...confidenceArray)
-              : null;
-
-            const needReview =
-              !pred.predicted_category_path ||
-              overallConfidence === null ||
-              overallConfidence < CONFIDENCE_THRESHOLD;
-
-            return {
-              updateOne: {
-                filter: { _id: productId },
-                update: {
-                  $set: {
-                    category_prediction_result: {
-                      predicted_category_path:
-                        pred.predicted_category_path || null,
-                      confidence_per_level: confidenceArray,
-                      overall_confidence: overallConfidence,
-                      categoryRef: categoryId,
-                    },
-                    isPredictionCompleted: true,
-                    isNeedReview: needReview,
+          return {
+            updateOne: {
+              filter: { _id: pred.productId },
+              update: {
+                $set: {
+                  category_prediction_result: {
+                    predicted_category_path:
+                      pred.predicted_category_path || null,
+                    confidence_per_level: confidenceArray,
+                    overall_confidence: overallConfidence,
+                    categoryRef:
+                      categoriesMap[pred.predicted_category_path] || null,
                   },
+                  category_prediction_status: needReview
+                    ? "needs_review"
+                    : "classified",
                 },
               },
-            };
-          })
-          .filter(Boolean);
+            },
+          };
+        })
+        .filter(Boolean);
 
-        // 🧮 Perform bulk update
-        if (bulkOps.length > 0) {
-          await Product.bulkWrite(bulkOps);
-        }
-
-        // ✅ Update categorization history
-        await CategorizationHistory.findByIdAndUpdate(history._id, {
-          $inc: {
-            processedBatches: 1,
-            processedProducts: products.length,
-          },
-        });
-
-        // 🧹 Limit logs count to avoid DB overload
-        const logCount = await CategorizationLog.countDocuments({
-          historyId: history._id,
-        });
-        if (logCount >= MAX_LOGS_PER_HISTORY) {
-          await CategorizationLog.deleteMany({ historyId: history._id });
-        }
-
-        await CategorizationLog.create({
-          historyId: history._id,
-          shop,
-          batchNumber,
-          processedProducts: products.length,
-          status: "success",
-          message: `✅ Batch ${batchNumber}/${totalBatches} processed successfully.`,
-        });
-
-        console.log(`✅ Batch ${batchNumber} done for shop: ${shop}`);
-
-        // 🕐 Optional delay to prevent API overloading
-        await new Promise((r) => setTimeout(r, 300));
-      } catch (err) {
-        console.error(`❌ Error in batch ${batchNumber}:`, err.message);
-
-        await CategorizationLog.create({
-          historyId: history._id,
-          shop,
-          batchNumber,
-          status: "error",
-          message: `❌ Error in batch ${batchNumber}: ${err.message}`,
-        });
+      // 🧮 Perform bulk update
+      if (bulkOps.length > 0) {
+        await Product.bulkWrite(bulkOps);
       }
+
+      // ✅ Update categorization history
+      await CategorizationHistory.findByIdAndUpdate(history._id, {
+        $inc: {
+          processedBatches: 1,
+          processedProducts: products.length,
+        },
+      });
+
+      // 🧹 Limit logs count
+      const logCount = await CategorizationLog.countDocuments({
+        historyId: history._id,
+      });
+      if (logCount >= MAX_LOGS_PER_HISTORY) {
+        await CategorizationLog.deleteMany({ historyId: history._id });
+      }
+
+      await CategorizationLog.create({
+        historyId: history._id,
+        shop,
+        batchNumber,
+        processedProducts: products.length,
+        status: "success",
+        message: `✅ Batch ${batchNumber}/${totalBatches} processed successfully.`,
+      });
+
+      console.log(`✅ Batch ${batchNumber} done for shop: ${shop}`);
     }
 
     console.log(`🎯 Completed categorization for shop: ${shop}`);
